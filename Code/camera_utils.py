@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import numpy as np
+from scipy.optimize import least_squares
 
 def get_camera_poses(e_mat: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     u, _, vt = np.linalg.svd(e_mat)
@@ -57,3 +58,76 @@ def linear_triangulation(c1: np.ndarray, r1: np.ndarray,
 
     triangulated_points_np = np.array(triangulated_points)
     return triangulated_points_np
+
+def get_triangulation_set(r_list: List[np.ndarray], c_list: List[np.ndarray],
+                          k: np.ndarray, matches: np.ndarray) -> List[np.ndarray]:
+    ref_r = np.identity(3)
+    ref_c = np.zeros((3, 1))
+    points1 = matches[:, 0:2]
+    points2 = matches[:, 2:4]
+    all_triangulated_points = []
+    for r, c in zip(r_list, c_list):
+        triangulated_points = linear_triangulation(c, r, ref_c, ref_r, k, points1, points2)
+        all_triangulated_points.append(triangulated_points)
+    return all_triangulated_points
+
+def disambiguate_camera_pose(r_list: List[np.ndarray], c_list: List[np.ndarray],
+                             all_triangulated_points: List[np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+    max_index = -1
+    current_max = 0
+    for i, (r, c, triangulated_points) in enumerate(zip(r_list, c_list, all_triangulated_points)):
+        positive_points = 0
+        for point in triangulated_points:
+            depth = np.dot(r[2,:], (point.reshape(4,1)[:3]  - c.reshape(3, 1)))
+            if depth[0] > 0:
+                positive_points += 1
+        if positive_points > current_max:
+            current_max = positive_points
+            max_index = i
+
+    triangulated_pts = all_triangulated_points[max_index]
+    triangulated_pts[:,0] = triangulated_pts[:,0]/triangulated_pts[:,-1]
+    triangulated_pts[:,1] = triangulated_pts[:,1]/triangulated_pts[:,-1]
+    triangulated_pts[:,2] = triangulated_pts[:,2]/triangulated_pts[:,-1]
+    triangulated_pts[:,3] = triangulated_pts[:,3]/triangulated_pts[:,-1]
+
+    return r_list[max_index], c_list[max_index].reshape(3,1), triangulated_pts
+
+def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, triangulated_pts: np.array):
+
+    R0 = np.identity(3)
+    t0 = np.zeros((3,1))
+    I = np.identity(3)
+    P0 = np.dot(K, np.dot(R0, np.hstack((I, -t0))))
+    P1 = np.dot(K, np.dot(R1, np.hstack((I, -t1))))
+
+    def projection_error(P: np.array, x: np.array, X: np.array) -> float:
+        x_ = np.dot(P, X)
+        x_ = x_/x_[-1]
+        # print(x)
+        # print(x_)
+        return np.sum(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1))**2)
+
+    def projection_loss(X, x0, x1):
+        loss = 0
+        loss += projection_error(P0, x0, X)
+        loss += projection_error(P1, x1, X)
+
+        return loss
+
+    def reprojection_loss(X):
+        loss = 0
+        for pt in range(len(inliers)):
+            loss += projection_error(P0, inliers[pt,0], X[pt])
+            loss += projection_error(P1, inliers[pt,1], X[pt])
+
+        return loss
+
+    print("Pre-optimization Loss: ", reprojection_loss(triangulated_pts))
+
+    optimized_triangulated_pts = list()
+    for pt in range(len(inliers)):
+        X = least_squares(fun=projection_loss, x0=triangulated_pts[pt], args=[inliers[pt,0], inliers[pt,1]])
+        optimized_triangulated_pts.append(X.x)
+
+    print("Post-optimization Loss: ", reprojection_loss(optimized_triangulated_pts))
