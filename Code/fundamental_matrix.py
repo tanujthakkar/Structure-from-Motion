@@ -40,5 +40,5 @@ def get_fundamental_matrix(points_1: np.ndarray, points_2: np.ndarray) -> np.nda
 
     # Normalize
     fundamental_matrix = np.dot(t2.T, np.dot(fundamental_matrix, t1))
-    fundamental_matrix = fundamental_matrix / fundamental_matrix[2, 2]
+    # fundamental_matrix = fundamental_matrix / fundamental_matrix[2, 2]
     return fundamental_matrix

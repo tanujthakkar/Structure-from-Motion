@@ -48,8 +48,8 @@ def error_func(pts1, pts2, F):
 
 def get_inliers_ransac(matches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     np.random.seed(1)
-    iterations = 1000
-    threshold = 0.001
+    iterations = 2000
+    threshold = 0.00025
     best_inliers_len = 0
     best_inliers = np.array([])
     best_f_mat = np.array([])
@@ -58,8 +58,8 @@ def get_inliers_ransac(matches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     for _ in tqdm(range(iterations)):
         random_m_idx = np.random.choice(matches.shape[0], size=8)
         random_matches = matches[random_m_idx]
-        points1 = random_matches[:, 0, :]
-        points2 = random_matches[:, 1, :]
+        points1 = random_matches[:,0,:]
+        points2 = random_matches[:,1,:]
         f_mat = get_fundamental_matrix(points1, points2)
         inliers = []
         for match in matches:
@@ -71,6 +71,8 @@ def get_inliers_ransac(matches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
             best_inliers_len = len(inliers)
             best_inliers = inliers_np
             best_f_mat = f_mat
+
+    best_f_mat = get_fundamental_matrix(best_inliers[:,0], best_inliers[:,1])
     return best_inliers, best_f_mat
 
 def get_all_inliers(all_matches: List[np.ndarray], path: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:

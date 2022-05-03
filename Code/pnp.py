@@ -76,3 +76,34 @@ def PnP_RANSAC(x: np.array, X: np.array, K: np.array, iterations: int=1000, epsi
             best_inliers = inliers
 
     print("Max Inliers:{}".format(max_inliers))
+
+
+def non_linear_PnP(x: np.array, X: np.array, K: np.array, R0: np.array, C0: np.array) -> List[np.array]:
+
+    def reprojection_loss(params: list, x:np.array, X: np.array, K: np.array) -> float:
+        q = np.array(params[:4]).reshape(-1,1)
+        C = np.array(params[4:]).reshape(-1,1)
+        I = np.identity(3)
+        P = np.dot(K, np.dot(q, np.hstack((I, -t))))
+
+        loss = 0
+        for pt in range(len(inliers)):
+            x_ = np.dot(P, X[pt])
+            x_ = x_/x_[-1]
+            loss += np.sum(np.subtract(x[pt].reshape(2,1), x_[:2].reshape(2,1))**2)
+
+        return loss
+
+    q = Rotation.from_matrix(R0)
+    q = q.as_quat()
+
+    params = [q[0], q[1], q[2], q[3], C0[0], C0[1], C0[2]]
+
+    optimized_params = least_squares(fun=reprojection_loss, x0=params, args=[x[pt,0], x[pt,1]])
+
+    optimized_q = optimized_params.x[:4]
+    optimized_C = optimized_params.x[4:]
+
+    R = Rotation.from_quat(optimized_q).as_matrix()
+
+    return R, optimized_C

@@ -59,39 +59,83 @@ def linear_triangulation(c1: np.ndarray, r1: np.ndarray,
     triangulated_points_np = np.array(triangulated_points)
     return triangulated_points_np
 
-def get_triangulation_set(r_list: List[np.ndarray], c_list: List[np.ndarray],
-                          k: np.ndarray, matches: np.ndarray) -> List[np.ndarray]:
-    ref_r = np.identity(3)
-    ref_c = np.zeros((3, 1))
-    points1 = matches[:, 0:2]
-    points2 = matches[:, 2:4]
+# def get_triangulation_set(r_list: List[np.ndarray], c_list: List[np.ndarray],
+#                           k: np.ndarray, matches: np.ndarray) -> List[np.ndarray]:
+#     ref_r = np.identity(3)
+#     ref_c = np.zeros((3, 1))
+#     points1 = matches[:, 0:2]
+#     points2 = matches[:, 2:4]
+#     all_triangulated_points = []
+#     for r, c in zip(r_list, c_list):
+#         triangulated_points = linear_triangulation(c, r, ref_c, ref_r, k, points1, points2)
+#         all_triangulated_points.append(triangulated_points)
+#     return all_triangulated_points
+
+# def disambiguate_camera_pose(r_list: List[np.ndarray], c_list: List[np.ndarray],
+#                              all_triangulated_points: List[np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+#     max_index = -1
+#     current_max = 0
+#     for i, (r, c, triangulated_points) in enumerate(zip(r_list, c_list, all_triangulated_points)):
+#         positive_points = 0
+#         for point in triangulated_points:
+#             depth = np.dot(r[2,:], (point.reshape(4,1)[:3]  - c.reshape(3, 1)))
+#             if depth[0] > 0:
+#                 positive_points += 1
+#         if positive_points > current_max:
+#             current_max = positive_points
+#             max_index = i
+
+#     triangulated_pts = all_triangulated_points[max_index]
+#     triangulated_pts[:,0] = triangulated_pts[:,0]/triangulated_pts[:,-1]
+#     triangulated_pts[:,1] = triangulated_pts[:,1]/triangulated_pts[:,-1]
+#     triangulated_pts[:,2] = triangulated_pts[:,2]/triangulated_pts[:,-1]
+#     triangulated_pts[:,3] = triangulated_pts[:,3]/triangulated_pts[:,-1]
+
+#     return r_list[max_index], c_list[max_index].reshape(3,1), triangulated_pts
+
+def get_all_triangulated_points(r_list: List[np.ndarray], c_list: List[np.ndarray],
+                                k: np.ndarray, points1: np.ndarray, points2: np.ndarray) -> List[np.ndarray]:
+    r1 = np.identity(3)
+    c1 = np.zeros((3, 1))
     all_triangulated_points = []
-    for r, c in zip(r_list, c_list):
-        triangulated_points = linear_triangulation(c, r, ref_c, ref_r, k, points1, points2)
+    for r2, c2 in zip(r_list, c_list):
+        triangulated_points = linear_triangulation(c1, r1, c2, r2, k, points1, points2)
         all_triangulated_points.append(triangulated_points)
     return all_triangulated_points
 
-def disambiguate_camera_pose(r_list: List[np.ndarray], c_list: List[np.ndarray],
-                             all_triangulated_points: List[np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
-    max_index = -1
-    current_max = 0
-    for i, (r, c, triangulated_points) in enumerate(zip(r_list, c_list, all_triangulated_points)):
-        positive_points = 0
-        for point in triangulated_points:
-            depth = np.dot(r[2,:], (point.reshape(4,1)[:3]  - c.reshape(3, 1)))
-            if depth[0] > 0:
-                positive_points += 1
-        if positive_points > current_max:
-            current_max = positive_points
-            max_index = i
+def normalize_points(points: np.ndarray) -> np.ndarray:
+    points[:,0] = points[:,0] / points[:,-1]
+    points[:,1] = points[:,1] / points[:,-1]
+    points[:,2] = points[:,2] / points[:,-1]
+    points[:,3] = points[:,3] / points[:,-1]
+    return points
 
-    triangulated_pts = all_triangulated_points[max_index]
-    triangulated_pts[:,0] = triangulated_pts[:,0]/triangulated_pts[:,-1]
-    triangulated_pts[:,1] = triangulated_pts[:,1]/triangulated_pts[:,-1]
-    triangulated_pts[:,2] = triangulated_pts[:,2]/triangulated_pts[:,-1]
-    triangulated_pts[:,3] = triangulated_pts[:,3]/triangulated_pts[:,-1]
+def disambiguate_pose(r_list: List[np.ndarray], c_list: List[np.ndarray],
+                      all_triangulated_points: List[np.ndarray]) -> int:
+    idx = 0
+    max_points = 0
 
-    return r_list[max_index], c_list[max_index].reshape(3,1), triangulated_pts
+    for i, (r, c, triangulated_pts) in enumerate(zip(r_list, c_list, all_triangulated_points)):
+        c = c.reshape(-1, 1)
+        r3 = r[2, :].reshape(1, -1)
+        triangulated_pts = normalize_points(triangulated_pts)
+        triangulated_pts = triangulated_pts[:, 0:3]
+        points = positivity_constraint(triangulated_pts, r3, c)
+        if points > max_points:
+            idx = i
+            max_points = points
+
+    triangulated_pts = normalize_points(all_triangulated_points[idx])
+
+    return r_list[idx], c_list[idx].reshape(3,1), triangulated_pts
+
+def positivity_constraint(triangulated_points: np.ndarray, r3: np.ndarray, c: np.ndarray) -> int:
+    points = 0
+    for triangulated_point in triangulated_points:
+        triangulated_point = triangulated_point.reshape(-1, 1)
+        if r3.dot(triangulated_point - c) > 0 and triangulated_point[2] > 0:
+            points += 1
+    return points
 
 def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, triangulated_pts: np.array) -> np.array:
 
@@ -114,7 +158,6 @@ def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, t
         loss += projection_error(P0, x0, X)
         loss += projection_error(P1, x1, X)
 
-        print(loss)
         return loss
 
     def reprojection_loss(X) -> float:
@@ -123,6 +166,7 @@ def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, t
             loss += projection_error(P0, inliers[pt,0], X[pt])
             loss += projection_error(P1, inliers[pt,1], X[pt])
 
+        loss = loss/(len(inliers)*2)
         return loss
 
     print("Pre-optimization Loss: ", reprojection_loss(triangulated_pts))
