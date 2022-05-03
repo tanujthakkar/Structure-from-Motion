@@ -1,7 +1,31 @@
 from typing import List, Tuple
 import numpy as np
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 from scipy.optimize import least_squares
 
+from Code.matching_utils import *
+
+def get_correspondences(img, inliers, triangulated_pts):
+
+    ref_pair = get_index(img-2, img-1)
+    ref = inliers[ref_pair]
+
+    x = list()
+    X = list()
+    
+    pair = get_index(img-1,img)
+    count = 0
+    for pt in range(len(ref)):
+        idx = np.where(inliers[pair][:,0] == ref[pt,1])
+        if(len(idx[0]) != 0):
+            count += 1
+            x.append(inliers[pair][idx[0][0],0])
+            X.append(triangulated_pts[pt])
+
+    x = np.array(x)
+    X = np.array(X)
+    return x, X
 
 def PnP(x: np.array, X: np.array, K: np.array) -> List[np.array]:
 
@@ -49,12 +73,15 @@ def reprojection_error(x: np.array, X: np.array, P: np.array) -> float:
 
         return np.sum(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1))**2)
 
-def PnP_RANSAC(x: np.array, X: np.array, K: np.array, iterations: int=1000, epsilon: float=0.01) -> List[np.array]:
+def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.array, iterations: int=1000, epsilon: float=0.1) -> List[np.array]:
 
     best_R = None
     best_t = None
     best_inliers = None
     max_inliers = 0
+
+    x, X = get_correspondences(img, inliers, triangulated_pts)
+    input('q')
 
     correspondences = np.arange(len(x)).tolist()
     for itr in range(iterations):
@@ -76,6 +103,8 @@ def PnP_RANSAC(x: np.array, X: np.array, K: np.array, iterations: int=1000, epsi
             best_inliers = inliers
 
     print("Max Inliers:{}".format(max_inliers))
+
+    return best_R, best_t
 
 
 def non_linear_PnP(x: np.array, X: np.array, K: np.array, R0: np.array, C0: np.array) -> List[np.array]:
