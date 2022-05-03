@@ -8,6 +8,7 @@
 
 import os
 import numpy as np
+import cv2
 from typing import Tuple, List
 
 def get_index(i: int, j: int) -> int:
@@ -47,8 +48,64 @@ def get_all_matches(path: str) -> List[np.ndarray]:
                     j = int(match_in_line[0])
                     x2, y2 = float(match_in_line[1]), float(match_in_line[2])
                     all_matches[get_index(i, j)].append([[x1, y1], [x2, y2]])
+                    # all_matches[get_index(i, j)].append([[y1, x1], [y2, x2]])
     all_matches_final = []
     for matches in all_matches:
         matches_np = np.array(matches)
         all_matches_final.append(matches_np)
     return all_matches_final
+
+def get_matches(img0: np.array, img1: np.array, save: bool=False, visualize: bool=False) -> Tuple[np.array, np.array]:
+        # Reference - https://docs.opencv.org/3.4/dc/dc3/tutorial_py_matcher.html
+
+        print("\nEstimating feature pairs...")
+
+        sift = cv2.SIFT_create()
+
+        img0_gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
+        img1_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+
+        kp1, des1 = sift.detectAndCompute(img0_gray, None)
+        kp2, des2 = sift.detectAndCompute(img1_gray, None)
+
+        FLANN_INDEX_KDTREE = 1
+        index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+        search_params = dict(checks=50)
+        flann = cv2.FlannBasedMatcher(index_params,search_params)
+        matches = flann.knnMatch(des1, des2, k=2)
+        matchesMask = [[0,0] for i in range(len(matches))]
+
+        x0 = np.empty([0,2])
+        x1 = np.empty([0,2])
+
+        for i,(m,n) in enumerate(matches):
+            if m.distance < (0.5 * n.distance):
+                x0 = np.append(x0, np.array([kp1[m.queryIdx].pt]), axis=0)
+                x1 = np.append(x1, np.array([kp2[m.trainIdx].pt]), axis=0)
+                matchesMask[i]=[1,0]
+
+        print("Found {} feature pairs.".format(len(x0)))
+
+        draw_params = dict(matchColor = (0,255,0),
+                           singlePointColor = (255,0,0),
+                           matchesMask = matchesMask,
+                           flags = cv2.DrawMatchesFlags_DEFAULT)
+
+        img_matches = cv2.drawMatchesKnn(img0, kp1, img1, kp2, matches, None, **draw_params)
+
+        if(visualize):
+            # cv2.imshow("Inputs", np.hstack((img0, img1)))
+            cv2.imshow("Matches", img_matches)
+            cv2.waitKey()
+
+        if(save):
+            cv2.imwrite(os.path.join(save_path, dataset + '_matches.png'), img_matches)
+
+        return x0, x1
+
+def get_matches_set(image_set: np.array) -> np.array:
+
+    for i, img in enumerate(image_set):
+        for j, img_ in enumerate(image_set[i+1:]):
+            x0, x1 = get_matches(img, img_, save=False, visualize=True)
+            print(np.column_stack((x0, x1)).shape)

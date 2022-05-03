@@ -1,6 +1,7 @@
 from typing import Tuple, List
 import numpy as np
 import os
+from tqdm import tqdm
 
 from Code.fundamental_matrix import get_fundamental_matrix
 from Code.matching_utils import get_pair
@@ -47,14 +48,14 @@ def error_func(pts1, pts2, F):
 
 def get_inliers_ransac(matches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     np.random.seed(1)
-    iterations = 2000
-    threshold = 0.002
+    iterations = 1000
+    threshold = 0.001
     best_inliers_len = 0
     best_inliers = np.array([])
     best_f_mat = np.array([])
     if matches.shape[0] <= 0:
         return best_inliers, best_f_mat
-    for _ in range(iterations):
+    for _ in tqdm(range(iterations)):
         random_m_idx = np.random.choice(matches.shape[0], size=8)
         random_matches = matches[random_m_idx]
         points1 = random_matches[:, 0, :]
@@ -73,6 +74,8 @@ def get_inliers_ransac(matches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return best_inliers, best_f_mat
 
 def get_all_inliers(all_matches: List[np.ndarray], path: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    print("\nEstimating inliers using RANSAC...")
+
     if saved(path):
         return read_saved(path)
     all_inliers = []

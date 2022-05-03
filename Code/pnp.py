@@ -67,7 +67,7 @@ def PnP_RANSAC(x: np.array, X: np.array, K: np.array, iterations: int=1000, epsi
         for i, pt in enumerate(x):
             err = reprojection_error(pt, X[i], P)
             if(err < epsilon):
-                inliers.append(pt)
+                inliers.append([pt, X[i]])
 
         if(len(inliers) > max_inliers):
             max_inliers = len(inliers)

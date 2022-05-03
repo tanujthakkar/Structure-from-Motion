@@ -93,7 +93,7 @@ def disambiguate_camera_pose(r_list: List[np.ndarray], c_list: List[np.ndarray],
 
     return r_list[max_index], c_list[max_index].reshape(3,1), triangulated_pts
 
-def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, triangulated_pts: np.array):
+def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, triangulated_pts: np.array) -> np.array:
 
     R0 = np.identity(3)
     t0 = np.zeros((3,1))
@@ -104,18 +104,20 @@ def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, t
     def projection_error(P: np.array, x: np.array, X: np.array) -> float:
         x_ = np.dot(P, X)
         x_ = x_/x_[-1]
-        # print(x)
-        # print(x_)
+        # u = np.square(x[0] - np.divide(np.dot(P[0].transpose(), X), np.dot(P[2].transpose(), X)))
+        # v = np.square(x[1] - np.divide(np.dot(P[1].transpose(), X), np.dot(P[2].transpose(), X)))
+
         return np.sum(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1))**2)
 
-    def projection_loss(X, x0, x1):
+    def projection_loss(X, x0, x1) -> float:
         loss = 0
         loss += projection_error(P0, x0, X)
         loss += projection_error(P1, x1, X)
 
+        print(loss)
         return loss
 
-    def reprojection_loss(X):
+    def reprojection_loss(X) -> float:
         loss = 0
         for pt in range(len(inliers)):
             loss += projection_error(P0, inliers[pt,0], X[pt])
@@ -131,3 +133,6 @@ def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, t
         optimized_triangulated_pts.append(X.x)
 
     print("Post-optimization Loss: ", reprojection_loss(optimized_triangulated_pts))
+
+    optimized_triangulated_pts = np.array(optimized_triangulated_pts)
+    return optimized_triangulated_pts

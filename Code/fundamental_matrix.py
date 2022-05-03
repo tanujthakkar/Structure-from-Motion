@@ -26,7 +26,7 @@ def get_fundamental_matrix(points_1: np.ndarray, points_2: np.ndarray) -> np.nda
     for point_1, point_2 in zip(points_1_norm, points_2_norm):
         x1, y1, _ = point_1
         x2, y2, _ = point_2
-        a_matrix.append([x1 * x2, x2 * y1, x2, y2 * x1, y2 * y1, y2, x1, y1, 1])
+        a_matrix.append([x2 * x1, x2 * y1, x2, y2 * x1, y2 * y1, y2, x1, y1, 1])
     a_matrix_np = np.array(a_matrix)
     _, _, v = np.linalg.svd(a_matrix_np, full_matrices=True)
     fundamental_matrix = v[-1, :]

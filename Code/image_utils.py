@@ -2,6 +2,8 @@ from typing import List
 from cv2 import cv2
 import numpy as np
 import os
+from matplotlib import pyplot as plt
+from scipy.spatial.transform import Rotation
 
 from Code.matching_utils import get_pair
 
@@ -39,14 +41,14 @@ def draw_inliers(image1: np.ndarray, image2: np.ndarray, matches: np.ndarray, in
     image1_copy = np.copy(image1)
     image2_copy = np.copy(image2)
     images_stacked = np.hstack((image1_copy, image2_copy))
-    for match in matches:
-        if find_in_matches(match, inliers):
-            continue
-        point1 = (int(match[0, 0]), int(match[0, 1]))
-        point2 = (int(match[1, 0]) + int(image1.shape[1]), int(match[1, 1]))
-        images_stacked = cv2.circle(images_stacked, point1, 2, (0, 0, 255))
-        images_stacked = cv2.circle(images_stacked, point2, 2, (0, 0, 255))
-        images_stacked = cv2.line(images_stacked, point1, point2, (0, 0, 255), 1)
+    # for match in matches:
+    #     if find_in_matches(match, inliers):
+    #         continue
+    #     point1 = (int(match[0, 0]), int(match[0, 1]))
+    #     point2 = (int(match[1, 0]) + int(image1.shape[1]), int(match[1, 1]))
+    #     images_stacked = cv2.circle(images_stacked, point1, 2, (0, 0, 255))
+    #     images_stacked = cv2.circle(images_stacked, point2, 2, (0, 0, 255))
+    #     images_stacked = cv2.line(images_stacked, point1, point2, (0, 0, 255), 1)
     for inlier in inliers:
         point1 = (int(inlier[0, 0]), int(inlier[0, 1]))
         point2 = (int(inlier[1, 0]) + int(image1.shape[1]), int(inlier[1, 1]))
@@ -72,3 +74,39 @@ def draw_all_inliers(images: List[np.ndarray], all_matches: List[np.ndarray],
         inliers_image_path = os.path.join(path, file_name)
         cv2.imwrite(inliers_image_path, inliers_image)
     
+def draw_triangulate_pts(all_triangulated_pts: np.array, R: np.array=None, C: np.array=None):
+    
+    color = ['r', 'g', 'b', 'black', 'orange', 'yellow']
+
+    triangulated_pts_set = list()
+    for i, triangulated_pts in enumerate(all_triangulated_pts):
+        x = triangulated_pts[:,0]/triangulated_pts[:,-1]
+        y = triangulated_pts[:,1]/triangulated_pts[:,-1]
+        z = triangulated_pts[:,2]/triangulated_pts[:,-1]
+        triangulated_pts_set.append([x, y, z])
+        plt.scatter(x, z, linewidth=0.01, marker='.', color=color[i])
+
+        if(R is not None):
+            R_ = Rotation.from_matrix(R[i]).as_rotvec()
+            R_ = np.rad2deg(R_)
+            plt.plot(C[i][0],C[i][2], marker=(2, 0, int(R_[1])), markersize=20, linestyle='None', color=color[i])
+            plt.plot(C[i][0],C[i][2], marker=(3, 0, int(R_[1])), markersize=15, linestyle='None', color=color[i])
+
+    if(R is not None):
+        R0 = np.identity(3)
+        R_ = Rotation.from_matrix(R0).as_rotvec()
+        R_ = np.rad2deg(R_)
+        plt.plot(0,0 , marker=(2, 0, int(R_[1])), markersize=20, linestyle='None', color='black')
+        plt.plot(0,0 , marker=(3, 0, int(R_[1])), markersize=15, linestyle='None', color='black')
+
+    plt.show()
+
+# def draw_triangulate_pts(triangulated_pts: np.array):
+    
+#     x = triangulated_pts[:,0]/triangulated_pts[:,-1]
+#     y = triangulated_pts[:,1]/triangulated_pts[:,-1]
+#     z = triangulated_pts[:,2]/triangulated_pts[:,-1]
+        
+#     color = ['r', 'b']
+#     plt.scatter(x, z, linewidth=0.01, marker='.', color=color[1])
+#     plt.show()
