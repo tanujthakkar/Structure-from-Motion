@@ -81,7 +81,6 @@ def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.ar
     max_inliers = 0
 
     x, X = get_correspondences(img, inliers, triangulated_pts)
-    input('q')
 
     correspondences = np.arange(len(x)).tolist()
     for itr in range(iterations):
@@ -93,6 +92,8 @@ def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.ar
         P = np.dot(K, np.dot(R, np.hstack((I, -t))))
         for i, pt in enumerate(x):
             err = reprojection_error(pt, X[i], P)
+            print(err)
+            input('q')
             if(err < epsilon):
                 inliers.append([pt, X[i]])
 
