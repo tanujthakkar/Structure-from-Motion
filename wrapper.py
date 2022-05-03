@@ -56,33 +56,26 @@ if __name__ == '__main__':
     print("\nE: ", E)
     R, C = get_camera_poses(E)
 
-    # all_triangulated_pts = get_triangulation_set(R, C, K, np.column_stack((all_inliers[0][:,0], all_inliers[0][:,1])))
     all_triangulated_pts = get_all_triangulated_points(R, C, K, all_inliers[0][:,0], all_inliers[0][:,1])
     all_triangulated_pts = np.array(all_triangulated_pts)
     draw_triangulate_pts(all_triangulated_pts)
 
     R, t, triangulated_pts = disambiguate_pose(R, C, all_triangulated_pts)
-    draw_triangulate_pts([triangulated_pts])
+    # draw_triangulate_pts([triangulated_pts])
     print("\nR: ", R)
     print("\nt: ", t)
 
-    # optimized_triangulated_pts = non_linear_triangulation(K, R, t, all_inliers[0], triangulated_pts)
-    # draw_triangulate_pts([triangulated_pts, optimized_triangulated_pts])
+    optimized_triangulated_pts = non_linear_triangulation(K, R, t, all_inliers[0], triangulated_pts)
+    draw_triangulate_pts([triangulated_pts, optimized_triangulated_pts])
 
-    # for img in range(2, len(images)):
-    #     PnP_RANSAC(all_inliers[2][:,1], triangulated_pts, K)
-    #     input('q')
-
-    # print(all_inliers[0][:,1])
-    # x = np.zeros(all_inliers[0].shape)
-    # for pt in range(len(x)):
-    #     x[pt,0] = all_inliers[0][pt,1]
-    #     print(all_inliers[0][pt,1], x[pt,0])
-    #     pair = get_index(2,3)
-    #     print(pair)
-    #     idx = np.where(all_inliers[pair][0] == x[pt,0])
-    #     print(idx)
-    #     input('q')
+    R_set = [R]
+    C_set = [t]
+    for img in range(2, len(images)):
+        R_new, C_new, best_correspondences = PnP_RANSAC(img+1, all_inliers, optimized_triangulated_pts, K)
+        R_opt, C_opt = non_linear_PnP(best_correspondences[:,0], best_correspondences[:,1], K, R_new, C_new)
+        R_set.append(R_opt)
+        C_set.append(C_opt)
+        input('q')
 
     if visualize:
         draw_all_matches(images, all_matches, out_dir)
