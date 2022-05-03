@@ -3,6 +3,7 @@ import numpy as np
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 from scipy.optimize import least_squares
+from scipy.spatial.transform import Rotation
 
 from Code.matching_utils import *
 
@@ -29,12 +30,12 @@ def get_correspondences(img, inliers, triangulated_pts):
 
 def PnP(x: np.array, X: np.array, K: np.array) -> List[np.array]:
 
-    print(x, x.shape)
-    print(X, X.shape)
+    # print(x, x.shape)
+    # print(X, X.shape)
     x = np.column_stack((x, np.ones(len(x))))
     K_inv = np.linalg.inv(K)
     x_norm = np.dot(K_inv, x.transpose()).transpose()
-    print(x_norm, x_norm.shape)
+    # print(x_norm, x_norm.shape)
 
     A = np.zeros((0, 12))
     for i, pt in enumerate(X):
@@ -68,12 +69,29 @@ def PnP(x: np.array, X: np.array, K: np.array) -> List[np.array]:
     return R, t
 
 def reprojection_error(x: np.array, X: np.array, P: np.array) -> float:
-        x_ = np.dot(P, X)
+    x_ = np.dot(P, X)
+    x_ = x_/x_[-1]
+
+    # err = np.sum(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1))**2)
+    err = np.linalg.norm(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1)))
+    return err
+
+def reprojection_loss(x: np.array, X: np.array, K: np.array, R: np.array, C: np.array) -> float:
+    I = np.identity(3)
+    P = np.dot(K, np.dot(R, np.hstack((I, -C))))
+
+    loss = 0
+    for pt in range(len(x)):
+        x_ = np.dot(P, X[pt])
         x_ = x_/x_[-1]
+        # print(x[pt], x_)
+        # input('q')
+        loss += np.sum(np.subtract(x[pt].reshape(2,1), x_[:2].reshape(2,1))**2)
 
-        return np.sum(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1))**2)
+    loss = loss/len(x)
+    return loss
 
-def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.array, iterations: int=1000, epsilon: float=0.1) -> List[np.array]:
+def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.array, iterations: int=1000, epsilon: float=5.0) -> List[np.array]:
 
     best_R = None
     best_t = None
@@ -92,8 +110,6 @@ def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.ar
         P = np.dot(K, np.dot(R, np.hstack((I, -t))))
         for i, pt in enumerate(x):
             err = reprojection_error(pt, X[i], P)
-            print(err)
-            input('q')
             if(err < epsilon):
                 inliers.append([pt, X[i]])
 
@@ -103,21 +119,29 @@ def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.ar
             best_t = t
             best_inliers = inliers
 
-    print("Max Inliers:{}".format(max_inliers))
+    # print("Max Inliers:{}".format(max_inliers))
 
-    return best_R, best_t
+    best_inliers = np.array(best_inliers)
+    print(best_inliers.shape)
+    print("\nCamera Parameters for frame {} ...".format(img))
+    print("R: ", best_R)
+    print("\nt: ", best_t)
+    reprojection_err = reprojection_loss(best_inliers[:,0], best_inliers[:,1], K, best_R, best_t)
+    print("Reprojection Error: ", reprojection_err)
 
+    return best_R, best_t, best_inliers
 
 def non_linear_PnP(x: np.array, X: np.array, K: np.array, R0: np.array, C0: np.array) -> List[np.array]:
 
-    def reprojection_loss(params: list, x:np.array, X: np.array, K: np.array) -> float:
-        q = np.array(params[:4]).reshape(-1,1)
+    def reprojection_loss_opt(params: list, x:np.array, X: np.array, K: np.array) -> float:
+        q = params[:4]
+        R = Rotation.from_quat(q).as_matrix()
         C = np.array(params[4:]).reshape(-1,1)
         I = np.identity(3)
-        P = np.dot(K, np.dot(q, np.hstack((I, -t))))
+        P = np.dot(K, np.dot(R, np.hstack((I, -C))))
 
         loss = 0
-        for pt in range(len(inliers)):
+        for pt in range(len(x)):
             x_ = np.dot(P, X[pt])
             x_ = x_/x_[-1]
             loss += np.sum(np.subtract(x[pt].reshape(2,1), x_[:2].reshape(2,1))**2)
@@ -129,11 +153,17 @@ def non_linear_PnP(x: np.array, X: np.array, K: np.array, R0: np.array, C0: np.a
 
     params = [q[0], q[1], q[2], q[3], C0[0], C0[1], C0[2]]
 
-    optimized_params = least_squares(fun=reprojection_loss, x0=params, args=[x[pt,0], x[pt,1]])
+    optimized_params = least_squares(fun=reprojection_loss_opt, x0=params, args=[x, X, K])
 
     optimized_q = optimized_params.x[:4]
-    optimized_C = optimized_params.x[4:]
+    optimized_C = optimized_params.x[4:].reshape(-1,1)
 
     R = Rotation.from_quat(optimized_q).as_matrix()
+
+    print("Optimized Camera Parameters...")
+    print("R: ", R)
+    print("\nt: ", optimized_C)
+    reprojection_err = reprojection_loss(x, X, K, R, optimized_C)
+    print("Reprojection Error: ", reprojection_err)
 
     return R, optimized_C
