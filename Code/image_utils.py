@@ -61,7 +61,7 @@ def draw_all_matches(images: List[np.ndarray], all_matches: List[np.ndarray], pa
     for idx, matches in enumerate(all_matches):
         (i, j) = get_pair(idx)
         matched_image = draw_matches(images[i - 1], images[j - 1], matches)
-        file_name = f'matched_{i}_{j}.jpg'
+        file_name = f'matched_{i}_{j}.png'
         matched_image_path = os.path.join(path, file_name)
         cv2.imwrite(matched_image_path, matched_image)
 
@@ -70,7 +70,7 @@ def draw_all_inliers(images: List[np.ndarray], all_matches: List[np.ndarray],
     for idx, (matches, inliers) in enumerate(zip(all_matches, all_inliers)):
         (i, j) = get_pair(idx)
         inliers_image = draw_inliers(images[i - 1], images[j - 1], matches, inliers)
-        file_name = f'matched_inliers_{i}_{j}.jpg'
+        file_name = f'matched_inliers_{i}_{j}.png'
         inliers_image_path = os.path.join(path, file_name)
         cv2.imwrite(inliers_image_path, inliers_image)
     

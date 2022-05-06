@@ -27,8 +27,8 @@ def get_camera_poses(e_mat: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarr
 
     return r_list, c_list
 
-def linear_triangulation(c1: np.ndarray, r1: np.ndarray,
-                         c2: np.ndarray, r2: np.ndarray,
+def linear_triangulation(r1: np.ndarray, c1: np.ndarray,
+                         r2: np.ndarray, c2: np.ndarray,
                          k: np.ndarray, points1: np.ndarray,
                          points2: np.ndarray) -> np.ndarray:
     eye = np.identity(3)
@@ -99,7 +99,7 @@ def get_all_triangulated_points(r_list: List[np.ndarray], c_list: List[np.ndarra
     c1 = np.zeros((3, 1))
     all_triangulated_points = []
     for r2, c2 in zip(r_list, c_list):
-        triangulated_points = linear_triangulation(c1, r1, c2, r2, k, points1, points2)
+        triangulated_points = linear_triangulation(r1, c1, r2, c2, k, points1, points2)
         all_triangulated_points.append(triangulated_points)
     return all_triangulated_points
 
@@ -137,19 +137,19 @@ def positivity_constraint(triangulated_points: np.ndarray, r3: np.ndarray, c: np
             points += 1
     return points
 
-def non_linear_triangulation(K, R1: np.array, t1: np.array, inliers: np.array, triangulated_pts: np.array) -> np.array:
+def non_linear_triangulation(K, R0: np.array, C0: np.array, R1: np.array, C1: np.array, inliers: np.array, triangulated_pts: np.array) -> np.array:
 
-    R0 = np.identity(3)
-    t0 = np.zeros((3,1))
     I = np.identity(3)
-    P0 = np.dot(K, np.dot(R0, np.hstack((I, -t0))))
-    P1 = np.dot(K, np.dot(R1, np.hstack((I, -t1))))
+    P0 = np.dot(K, np.dot(R0, np.hstack((I, -C0))))
+    P1 = np.dot(K, np.dot(R1, np.hstack((I, -C1))))
 
     def projection_error(P: np.array, x: np.array, X: np.array) -> float:
         x_ = np.dot(P, X)
         x_ = x_/x_[-1]
+
         # u = np.square(x[0] - np.divide(np.dot(P[0].transpose(), X), np.dot(P[2].transpose(), X)))
         # v = np.square(x[1] - np.divide(np.dot(P[1].transpose(), X), np.dot(P[2].transpose(), X)))
+        # err = u + v
 
         return np.sum(np.subtract(x.reshape(2,1), x_[:2].reshape(2,1))**2)
 

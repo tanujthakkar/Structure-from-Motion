@@ -4,10 +4,13 @@ import sys
 np.set_printoptions(threshold=sys.maxsize)
 from scipy.optimize import least_squares
 from scipy.spatial.transform import Rotation
+from tqdm import tqdm
+import cv2
 
 from Code.matching_utils import *
+from Code.image_utils import *
 
-def get_correspondences(img, inliers, triangulated_pts):
+def get_correspondences(img, img_set, inliers, triangulated_pts):
 
     ref_pair = get_index(img-2, img-1)
     ref = inliers[ref_pair]
@@ -23,6 +26,10 @@ def get_correspondences(img, inliers, triangulated_pts):
             count += 1
             x.append(inliers[pair][idx[0][0],0])
             X.append(triangulated_pts[pt])
+            matches = np.array([[ref[pt,1], inliers[pair][idx[0][0],0]]])
+            # print(matches.shape)
+            # cv2.imshow("", draw_matches(img_set[img-1], img_set[img], matches))
+            # cv2.waitKey(0)
 
     x = np.array(x)
     X = np.array(X)
@@ -91,17 +98,17 @@ def reprojection_loss(x: np.array, X: np.array, K: np.array, R: np.array, C: np.
     loss = loss/len(x)
     return loss
 
-def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.array, iterations: int=1000, epsilon: float=5.0) -> List[np.array]:
+def PnP_RANSAC(img: int, img_set: list, inliers: np.array, triangulated_pts: np.array, K: np.array, iterations: int=1000, epsilon: float=5.0) -> List[np.array]:
 
     best_R = None
     best_t = None
     best_inliers = None
     max_inliers = 0
 
-    x, X = get_correspondences(img, inliers, triangulated_pts)
+    x, X = get_correspondences(img, img_set, inliers, triangulated_pts)
 
     correspondences = np.arange(len(x)).tolist()
-    for itr in range(iterations):
+    for itr in tqdm(range(iterations)):
         inliers = list()
         correspondences_6 = np.random.choice(correspondences, 6, replace=False)
         R, t = PnP(x[correspondences_6], X[correspondences_6], K)
@@ -121,12 +128,13 @@ def PnP_RANSAC(img: int, inliers: np.array, triangulated_pts: np.array, K: np.ar
 
     # print("Max Inliers:{}".format(max_inliers))
 
-    best_inliers = np.array(best_inliers)
-    print(best_inliers.shape)
+    # best_inliers = np.array(best_inliers, dtype=list)
+    best_inliers = [x, X]
+    # print(best_inliers.shape)
     print("\nCamera Parameters for frame {} ...".format(img))
     print("R: ", best_R)
     print("\nt: ", best_t)
-    reprojection_err = reprojection_loss(best_inliers[:,0], best_inliers[:,1], K, best_R, best_t)
+    reprojection_err = reprojection_loss(best_inliers[0], best_inliers[1], K, best_R, best_t)
     print("Reprojection Error: ", reprojection_err)
 
     return best_R, best_t, best_inliers

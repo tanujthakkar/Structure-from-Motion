@@ -49,7 +49,7 @@ def error_func(pts1, pts2, F):
 def get_inliers_ransac(matches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     np.random.seed(1)
     iterations = 2000
-    threshold = 0.00025
+    threshold = 0.001
     best_inliers_len = 0
     best_inliers = np.array([])
     best_f_mat = np.array([])
